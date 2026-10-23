@@ -8,6 +8,11 @@ from app.services.backend_client import get_investigation_data
 from app.agents.schemas import IncidentAnalysis
 from app.agents.evidence_validator import validate_evidence
 
+from typing import Any
+
+from app.rag.retrieve import retrieve_relevant_documents
+
+
 # Shared State
 class IncidentState(TypedDict,total = False):
     incident_id : int
@@ -21,6 +26,10 @@ class IncidentState(TypedDict,total = False):
     investigation_status: str
 
     analysis: str
+
+    retrieved_context: list[dict[str, Any]]
+
+    source_references: list[dict[str, Any]]
 
 #Node 1 : Fetch incident evidence from spring boot
 def fetch_evidence(state: IncidentState) -> dict:
@@ -138,6 +147,17 @@ def synthesize_findings(state: IncidentState) -> dict:
         temperature=0
     )
 
+    # Read the historical evidence retrieved by the RAG node.
+    retrieved_context = state.get("retrieved_context", [])
+
+    # Serialize the retrieved chunks, including their source paths.
+    # This makes the evidence readable to the language model.
+    retrieved_context_text = json.dumps(
+        retrieved_context,
+        indent=2,
+        default=str,
+    )
+
     prompt = f"""
     You are investigating a production software incident.
 
@@ -161,8 +181,31 @@ def synthesize_findings(state: IncidentState) -> dict:
     DEPLOYMENT ANALYSIS:
     {state["deployment_analysis"]}
 
-    Return exactly one valid JSON object matching this schema, with no Markdown,
-    explanation, or text before or after the JSON:
+    RETRIEVED HISTORICAL INCIDENTS AND RUNBOOKS:
+    {retrieved_context_text}
+
+    Instructions:
+    1. Use live incident data and the three analyses as the primary evidence
+    about the current incident.
+    2. Use retrieved documents as historical context and troubleshooting
+    guidance, not as proof of the current root cause.
+    3. Do not claim a historical incident's root cause is the current
+    incident's root cause unless current evidence supports that conclusion.
+    4. Distinguish confirmed observations from suspected explanations.
+    5. If the evidence is insufficient, explain the uncertainty.
+    6. Recommend practical diagnostic or remediation steps supported by
+    the available evidence.
+    7. Return output that conforms exactly to the existing IncidentAnalysis
+    JSON schema.
+
+    Return exactly one JSON object with these five top-level keys and no others:
+    "suspected_root_cause" (string), "confidence" (number from 0 to 1),
+    "supporting_evidence" (array of strings), "recommended_actions"
+    (array of strings), and "uncertainties" (array of strings).
+    Do not return the incident record itself or wrap the object in another
+    object. Include every key even when a list is empty. Return JSON only.
+
+    Required schema:
     {json.dumps(IncidentAnalysis.model_json_schema(), indent=2)}
     """
     response = llm.invoke(prompt)
@@ -214,6 +257,43 @@ def route_after_validation(state: IncidentState) -> dict:
         return "partially_supported"
     return "inconclusive"
 
+def retrieve_context(state: IncidentState) -> dict[str, Any]:
+    """
+    Retrieve historical incidents and runbooks relevant to this incident.
+    Save both the retrieved text and its source references in graph state.
+    """
+
+    # Get the incident evidence already fetched from the Spring Boot API.
+    investigation_data = state.get("investigation_data", {})
+
+    # Convert the incident evidence to text so vector search can use it.
+    incident_text = json.dumps(
+        investigation_data,
+        indent=2,
+        default=str,
+    )
+
+    documents = retrieve_relevant_documents(
+        query=incident_text,
+        k=4,
+    )
+
+    retrieved_context = documents
+
+    # build source references
+    source_references = [
+        {
+            "source": document["source"],
+            "start_index": document["start_index"],
+            "distance": document["distance"],
+        }
+        for document in documents
+    ]
+
+    return {
+        "retrieved_context": retrieved_context,
+        "source_references": source_references,
+    }
 
 # Orchestration - defines the execution order
 builder = StateGraph(IncidentState)
@@ -224,6 +304,7 @@ builder.add_node("analyze_metrics",analyze_metrics)
 builder.add_node("analyze_deployments",analyze_deployments)
 builder.add_node("synthesize_findings",synthesize_findings)
 builder.add_node("validate_findings",validate_findings)
+builder.add_node("retrieve_context",retrieve_context)
 
 
 
@@ -234,10 +315,16 @@ builder.add_edge(START, "fetch_evidence")
 builder.add_edge("fetch_evidence", "analyze_logs")
 builder.add_edge("fetch_evidence", "analyze_metrics")
 builder.add_edge("fetch_evidence", "analyze_deployments")
+builder.add_edge("fetch_evidence", "retrieve_context")
 
-# Fan-in: synthesize after all three analyses
+# Fan-in: synthesize after all three analyses & rag result
 builder.add_edge(
-    ["analyze_logs", "analyze_metrics", "analyze_deployments"],
+    [
+        "analyze_logs",
+        "analyze_metrics",
+        "analyze_deployments",
+        "retrieve_context",
+    ],
     "synthesize_findings",
 )
 

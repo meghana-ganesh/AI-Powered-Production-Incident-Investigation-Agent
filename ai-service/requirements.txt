@@ -6,3 +6,6 @@ pydantic
 langgraph
 langchain-core
 langchain-ollama
+chromadb
+langchain-chroma
+langchain-text-splitters

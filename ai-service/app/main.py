@@ -69,4 +69,5 @@ def investigate(incident_id : int):
     "evidence": result["investigation_data"],
     "evidence_validation": result["evidence_validation"],
     "investigation_status": result["investigation_status"],
+    "sources": result.get("source_references", []),
 }
