@@ -18,3 +18,27 @@ __pycache__/
 # Local database files
 backend/data/
 .github/modernize/
+
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Local vector database and generated data
+ai-service/data/chroma_db/
+ai-service/data/
+
+# Local model files
+*.gguf
+
+# Frontend dependencies and build output
+node_modules/
+dist/
+.next/
