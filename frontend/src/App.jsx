@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 
-const API = "http://localhost:8081";
+const API = import.meta.env.VITE_API_BASE_URL || "http://localhost:8081";
 
 function asArray(value) {
   if (Array.isArray(value)) return value;
