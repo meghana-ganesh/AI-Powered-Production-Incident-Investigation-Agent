@@ -1,4 +1,6 @@
-$baseUrl = "http://localhost:8081"
+$localBaseUrl = "http://localhost:8081"
+$renderBaseUrl = "https://ai-powered-production-incident.onrender.com"
+$baseUrl = $localBaseUrl
 
 function Post-Json {
     param(
