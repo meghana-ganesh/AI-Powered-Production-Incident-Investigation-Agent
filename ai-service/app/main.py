@@ -4,8 +4,10 @@ import json
 from app.agents.evidence_validator import validate_evidence
 from fastapi import FastAPI
 from pydantic import BaseModel
-from langchain_ollama import ChatOllama
-from app.config import OLLAMA_BASE_URL, OLLAMA_MODEL, BACKEND_BASE_URL
+# from langchain_ollama import ChatOllama
+# from app.config import OLLAMA_BASE_URL, OLLAMA_MODEL, BACKEND_BASE_URL
+from app.llm import get_llm
+from app.config import BACKEND_BASE_URL
 from app.services.backend_client import get_investigation_data
 from app.agents.incident_graph import incident_graph
 from fastapi.middleware.cors import CORSMiddleware
@@ -21,11 +23,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-llm = ChatOllama(
-    model=OLLAMA_MODEL,
-    base_url=OLLAMA_BASE_URL,
-    temperature=0
-)
+# llm = ChatOllama(
+#     model=OLLAMA_MODEL,
+#     base_url=OLLAMA_BASE_URL,
+#     temperature=0
+# )
+
+llm = get_llm()
 
 class ChatRequest(BaseModel):
     message: str

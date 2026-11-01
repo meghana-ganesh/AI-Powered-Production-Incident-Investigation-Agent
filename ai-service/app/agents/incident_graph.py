@@ -4,6 +4,7 @@ from langgraph.graph import StateGraph,START,END
 from langchain_ollama import ChatOllama
 
 from app.config import OLLAMA_BASE_URL, OLLAMA_MODEL
+from app.llm import get_llm
 from app.services.backend_client import get_investigation_data
 from app.agents.schemas import IncidentAnalysis
 from app.agents.evidence_validator import validate_evidence
@@ -44,11 +45,12 @@ def fetch_evidence(state: IncidentState) -> dict:
 def analyze_logs(state : IncidentState) -> dict:
     data = state["investigation_data"]
 
-    llm = ChatOllama(
-        model = OLLAMA_MODEL,
-        base_url = OLLAMA_BASE_URL,
-        temperature = 0
-    )
+    # llm = ChatOllama(
+    #     model = OLLAMA_MODEL,
+    #     base_url = OLLAMA_BASE_URL,
+    #     temperature = 0
+    # )
+    llm = get_llm()
 
     prompt = f"""
     You are a production incident investigator.
@@ -76,12 +78,12 @@ def analyze_logs(state : IncidentState) -> dict:
 def analyze_metrics(state: IncidentState) -> dict:
     data = state["investigation_data"]
 
-    llm = ChatOllama(
-        model=OLLAMA_MODEL,
-        base_url=OLLAMA_BASE_URL,
-        temperature=0
-    )
-
+    # llm = ChatOllama(
+    #     model=OLLAMA_MODEL,
+    #     base_url=OLLAMA_BASE_URL,
+    #     temperature=0
+    # )
+    llm = get_llm()
     prompt = f"""
     You are a production reliability engineer.
 
@@ -110,11 +112,13 @@ def analyze_metrics(state: IncidentState) -> dict:
 def analyze_deployments(state: IncidentState) -> dict:
     data = state["investigation_data"]
 
-    llm = ChatOllama(
-        model = OLLAMA_MODEL,
-        base_url = OLLAMA_BASE_URL,
-        temperature = 0
-    )
+    # llm = ChatOllama(
+    #     model = OLLAMA_MODEL,
+    #     base_url = OLLAMA_BASE_URL,
+    #     temperature = 0
+    # )
+
+    llm = get_llm()
 
     prompt = f"""
     You are a production incident investigator.
@@ -141,12 +145,13 @@ def analyze_deployments(state: IncidentState) -> dict:
 
 def synthesize_findings(state: IncidentState) -> dict:
 
-    llm = ChatOllama(
-        model=OLLAMA_MODEL,
-        base_url=OLLAMA_BASE_URL,
-        temperature=0
-    )
+    # llm = ChatOllama(
+    #     model=OLLAMA_MODEL,
+    #     base_url=OLLAMA_BASE_URL,
+    #     temperature=0
+    # )
 
+    llm = get_llm()
     # Read the historical evidence retrieved by the RAG node.
     retrieved_context = state.get("retrieved_context", [])
 
