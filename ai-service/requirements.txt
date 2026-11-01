@@ -9,3 +9,4 @@ langchain-ollama
 chromadb
 langchain-chroma
 langchain-text-splitters
+langchain-google-genai
