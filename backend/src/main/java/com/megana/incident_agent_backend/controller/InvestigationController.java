@@ -9,11 +9,12 @@ import com.megana.incident_agent_backend.repository.IncidentRepository;
 import com.megana.incident_agent_backend.repository.LogEventRepository;
 import com.megana.incident_agent_backend.repository.MetricEventRepository;
 import org.springframework.web.bind.annotation.*;
+import com.megana.incident_agent_backend.service.InvestigationAiService;
+import org.springframework.http.ResponseEntity;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import org.springframework.web.bind.annotation.CrossOrigin;
 
 @RestController
 @RequestMapping("/api/incidents")
@@ -24,17 +25,19 @@ public class InvestigationController {
     private final LogEventRepository logRepository;
     private final MetricEventRepository metricRepository;
     private final DeploymentEventRepository deploymentRepository;
+    private final InvestigationAiService investigationAiService;
 
     public InvestigationController(
             IncidentRepository incidentRepository,
             LogEventRepository logRepository,
             MetricEventRepository metricRepository,
-            DeploymentEventRepository deploymentRepository) {
+            DeploymentEventRepository deploymentRepository,InvestigationAiService investigationAiService) {
 
         this.incidentRepository = incidentRepository;
         this.logRepository = logRepository;
         this.metricRepository = metricRepository;
         this.deploymentRepository = deploymentRepository;
+        this.investigationAiService = investigationAiService;
     }
 
     @GetMapping("/{id}/investigation-data")
@@ -65,4 +68,12 @@ public class InvestigationController {
 
         return result;
     }
+        @PostMapping("/{id}/investigate")
+        public ResponseEntity<Map<String, Object>> investigate(
+                @PathVariable Long id) {
+
+        return ResponseEntity.ok(
+                investigationAiService.investigate(id)
+        );
+        }
 }
