@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 const API = import.meta.env.VITE_API_BASE_URL || "http://localhost:8081";
+const AI_API = import.meta.env.VITE_AI_API_BASE_URL || "https://ai-powered-production-incident-yja8.onrender.com";
 
 function asArray(value) {
   if (Array.isArray(value)) return value;
@@ -81,7 +82,7 @@ async function runAiInvestigation() {
 
   try {
     const response = await fetch(
-      `/ai-api/investigate/${selectedId}`,
+      `${AI_API}/investigate/${selectedId}`,
       { method: "POST" }
     );
 
@@ -94,7 +95,7 @@ async function runAiInvestigation() {
     setAiResult(data);
   } catch (error) {
     setAiError(
-      `Could not run AI investigation. Check that FastAPI and Ollama are running. ${error.message}`
+      `Could not run AI investigation. Check the hosted AI service and its logs. ${error.message}`
     );
   } finally {
     setAiLoading(false);
@@ -213,7 +214,7 @@ async function runAiInvestigation() {
   <div>
     <strong>AI incident investigation</strong>
     <p>
-      Use LangGraph and your local LLM to analyze this incident's evidence.
+      Use the hosted LangGraph AI service to analyze this incident's evidence.
     </p>
   </div>
 
