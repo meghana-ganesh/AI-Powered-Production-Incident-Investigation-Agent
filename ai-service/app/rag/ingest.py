@@ -1,18 +1,15 @@
 from pathlib import Path
+import hashlib
 
 from langchain_chroma import Chroma #vectordb
-from langchain_ollama import OllamaEmbeddings #embeddings - convert text to numerical vectors locally
 from langchain_text_splitters import RecursiveCharacterTextSplitter #divides long docs into smallerchunks
+from app.rag.embeddings import get_collection_name, get_embeddings
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 KNOWLEDGE_BASE_DIR = BASE_DIR / "knowledge_base"
 VECTOR_STORE_DIR = BASE_DIR / "data" / "chroma_db"
 
-EMBEDDING_MODEL = "nomic-embed-text"
-
 #logical name for the collection inside chroma
-
-COLLECTION_NAME = "incident_knowledge_base"
 
 def load_documents():
     """Read markdown files from the knowledge base"""
@@ -58,22 +55,26 @@ def build_vector_store():
             texts.append(chunk.page_content)
             metadatas.append({**chunk.metadata, "start_index": chunk.metadata.get("start_index", 0)})
 
-    #initialize local embedding model through Ollama
-    embeddings = OllamaEmbeddings(model=EMBEDDING_MODEL)
+    embeddings = get_embeddings()
 
     #connect to persistent chroma db
     vector_store = Chroma(
-        collection_name=COLLECTION_NAME,
+        collection_name=get_collection_name(),
         embedding_function=embeddings,
         persist_directory=VECTOR_STORE_DIR
     )
 
-    #Get IDs of previously indexed chunks in this collection
-    existing_ids = vector_store.get()["ids"]
-    #chroma uses embedding func to generate their vectors
+    ids = [
+        hashlib.sha256(
+            f"{metadata['source']}:{metadata['start_index']}:{text}".encode("utf-8")
+        ).hexdigest()
+        for text, metadata in zip(texts, metadatas)
+    ]
+    # Stable IDs make repeated local/deployment ingestion safe and idempotent.
     vector_store.add_texts(
         texts=texts,
         metadatas=metadatas,
+        ids=ids,
     )
 
     return len(documents),len(texts)

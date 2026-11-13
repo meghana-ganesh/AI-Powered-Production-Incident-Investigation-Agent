@@ -1,15 +1,11 @@
 import json
-from typing import TypedDict, Any
+from typing import Any, TypedDict
 from langgraph.graph import StateGraph,START,END
-from langchain_ollama import ChatOllama
 
-from app.config import OLLAMA_BASE_URL, OLLAMA_MODEL
 from app.llm import get_llm
 from app.services.backend_client import get_investigation_data
 from app.agents.schemas import IncidentAnalysis
 from app.agents.evidence_validator import validate_evidence
-
-from typing import Any
 
 from app.rag.retrieve import retrieve_relevant_documents
 
@@ -45,11 +41,6 @@ def fetch_evidence(state: IncidentState) -> dict:
 def analyze_logs(state : IncidentState) -> dict:
     data = state["investigation_data"]
 
-    # llm = ChatOllama(
-    #     model = OLLAMA_MODEL,
-    #     base_url = OLLAMA_BASE_URL,
-    #     temperature = 0
-    # )
     llm = get_llm()
 
     prompt = f"""
@@ -78,11 +69,6 @@ def analyze_logs(state : IncidentState) -> dict:
 def analyze_metrics(state: IncidentState) -> dict:
     data = state["investigation_data"]
 
-    # llm = ChatOllama(
-    #     model=OLLAMA_MODEL,
-    #     base_url=OLLAMA_BASE_URL,
-    #     temperature=0
-    # )
     llm = get_llm()
     prompt = f"""
     You are a production reliability engineer.
@@ -112,12 +98,6 @@ def analyze_metrics(state: IncidentState) -> dict:
 def analyze_deployments(state: IncidentState) -> dict:
     data = state["investigation_data"]
 
-    # llm = ChatOllama(
-    #     model = OLLAMA_MODEL,
-    #     base_url = OLLAMA_BASE_URL,
-    #     temperature = 0
-    # )
-
     llm = get_llm()
 
     prompt = f"""
@@ -146,11 +126,10 @@ def analyze_deployments(state: IncidentState) -> dict:
 
 
 def synthesize_findings(state: IncidentState) -> dict:
-    llm = ChatOllama(
-        base_url=OLLAMA_BASE_URL,
-        model=OLLAMA_MODEL,
-        temperature=0,
-        format=IncidentAnalysis.model_json_schema(),
+    llm = get_llm()
+    structured_llm = llm.with_structured_output(
+        IncidentAnalysis,
+        method="json_schema",
     )
 
     prompt = f"""
@@ -176,25 +155,15 @@ METRICS ANALYSIS:
 DEPLOYMENT ANALYSIS:
 {state["deployment_analysis"]}
 
+RETRIEVED RUNBOOKS AND HISTORICAL INCIDENTS:
+{json.dumps(state.get("retrieved_context", []), indent=2, default=str)}
+
 Return an object matching the requested IncidentAnalysis schema.
 """
 
-    response = llm.invoke(prompt)
-
-    raw = response.content.strip()
-
-    # Remove Markdown code fences if present.
-    if raw.startswith("```"):
-        lines = raw.splitlines()
-        lines = lines[1:]
-
-        if lines and lines[-1].strip() == "```":
-            lines = lines[:-1]
-
-        raw = "\n".join(lines).strip()
-
-    # Validate the structured response.
-    analysis = IncidentAnalysis.model_validate_json(raw)
+    analysis = structured_llm.invoke(prompt)
+    if isinstance(analysis, dict):
+        analysis = IncidentAnalysis.model_validate(analysis)
 
     return {
         "analysis": analysis.model_dump_json(indent=2)

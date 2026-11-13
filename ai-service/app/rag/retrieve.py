@@ -1,27 +1,18 @@
 from pathlib import Path
 
 from langchain_chroma import Chroma
-
-from langchain_ollama import OllamaEmbeddings
-
+from app.rag.embeddings import get_collection_name, get_embeddings
 
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 
 VECTOR_STORE_DIR = BASE_DIR / "data" / "chroma_db"
 
-EMBEDDING_MODEL = "nomic-embed-text"
-COLLECTION_NAME = "incident_knowledge_base"
-
-
 def get_vector_store():
-    """Open the existing persistent vector database."""
-
-    embeddings = OllamaEmbeddings(model=EMBEDDING_MODEL)
-
+    """Open the persistent vector database for the configured embedder."""
     vector_store = Chroma(
-        collection_name=COLLECTION_NAME,
-        embedding_function=embeddings,
+        collection_name=get_collection_name(),
+        embedding_function=get_embeddings(),
         persist_directory=str(VECTOR_STORE_DIR),
     )
 
@@ -39,6 +30,14 @@ def retrieve_relevant_documents(query: str, k: int = 3):
         raise ValueError("k must be at least 1.")
 
     vector_store = get_vector_store()
+
+    # A fresh Render filesystem has no persisted Chroma data. Populate the
+    # provider-specific collection on first use; local Ollama works the same way.
+    if not vector_store.get(limit=1).get("ids"):
+        from app.rag.ingest import build_vector_store
+
+        build_vector_store()
+        vector_store = get_vector_store()
 
     # Search for the k most similar chunks using vector similarity.
     # Each result contains a Document and a distance score.

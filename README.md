@@ -220,6 +220,10 @@ To run the application, install the project dependencies, ensure the configured 
 
 Refer to the project source and dependency files for the current setup commands and required configuration.
 
+### LLM and embedding provider
+
+The AI service uses `LLM_PROVIDER` for both chat and Chroma embeddings. Set it to `ollama` for local development or `gemini` for a hosted deployment. Gemini deployments need `GOOGLE_API_KEY`; `GEMINI_MODEL` and `GEMINI_EMBEDDING_MODEL` can select the chat and embedding models. Keep the key in the service's environment settings, not in source control. A fresh vector-store directory is indexed from `ai-service/knowledge_base` on the first investigation. Provider and embedding-model-specific Chroma collections prevent Ollama vectors from being queried with Gemini embeddings.
+
 ## Project Goal
 
 Build an incident investigation assistant that is not only capable of generating useful explanations, but can also retrieve relevant knowledge, expose its evidence, validate its output, and be evaluated systematically for reliability and performance.

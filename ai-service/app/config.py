@@ -20,6 +20,10 @@ GOOGLE_API_KEY = (
 )
 
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+GEMINI_EMBEDDING_MODEL = os.getenv(
+    "GEMINI_EMBEDDING_MODEL",
+    "gemini-embedding-2-preview",
+)
 
 # Spring Boot backend
 BACKEND_BASE_URL = os.getenv(
