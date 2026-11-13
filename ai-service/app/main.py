@@ -1,8 +1,9 @@
 
 import json
+import httpx
 
 from app.agents.evidence_validator import validate_evidence
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 # from langchain_ollama import ChatOllama
 # from app.config import OLLAMA_BASE_URL, OLLAMA_MODEL, BACKEND_BASE_URL
@@ -56,7 +57,26 @@ def test_backend(incident_id: int):
 
 @app.post("/investigate/{incident_id}")
 def investigate(incident_id : int):
-    result = incident_graph.invoke({"incident_id": incident_id})
+    try:
+        result = incident_graph.invoke({"incident_id": incident_id})
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code == 429:
+            retry_after = exc.response.headers.get("Retry-After")
+            headers = {"Retry-After": retry_after} if retry_after else None
+            raise HTTPException(
+                status_code=503,
+                detail="The incident backend is rate limiting requests. Please retry shortly.",
+                headers=headers,
+            ) from exc
+        raise HTTPException(
+            status_code=502,
+            detail=f"The incident backend returned HTTP {exc.response.status_code}.",
+        ) from exc
+    except httpx.RequestError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail="The incident backend could not be reached.",
+        ) from exc
 
     
     analysis_data = result["analysis"]
