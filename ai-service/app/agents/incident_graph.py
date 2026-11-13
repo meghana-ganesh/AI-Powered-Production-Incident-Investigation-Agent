@@ -213,26 +213,31 @@ def synthesize_findings(state: IncidentState) -> dict:
     Required schema:
     {json.dumps(IncidentAnalysis.model_json_schema(), indent=2)}
     """
-    response = llm.invoke(prompt)
+    
+response = llm.invoke(prompt)
 
-    # Remove Markdown code fences if the model adds them.
-    raw = response.content.strip()
+# Remove Markdown code fences if the model adds them.
+raw = response.content.strip()
 
-    if raw.startswith("```"):
-        lines = raw.splitlines()
+if raw.startswith("```"):
+    lines = raw.splitlines()
 
-        # Remove the opening ``` or ```json line.
-        lines = lines[1:]
+    # Remove the opening ``` or ```json line.
+    lines = lines[1:]
 
-        # Remove the closing ``` line.
-        if lines and lines[-1].strip() == "```":
-            lines = lines[:-1]
+    # Remove the closing ``` line.
+    if lines and lines[-1].strip() == "```":
+        lines = lines[:-1]
 
-        raw = "\n".join(lines).strip()
+    raw = "\n".join(lines).strip()
 
-    # Ignore any prose the model appends after its JSON object, then validate it.
-    parsed, _ = json.JSONDecoder().raw_decode(raw)
-    analysis = IncidentAnalysis.model_validate(parsed)
+# Parse and validate the JSON against our schema.
+analysis = IncidentAnalysis.model_validate_json(raw)
+
+return {
+    "analysis": analysis.model_dump_json(indent=2)
+}
+
 
     return {
         "analysis": analysis.model_dump_json(indent=2)
