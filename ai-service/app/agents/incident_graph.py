@@ -143,105 +143,64 @@ def analyze_deployments(state: IncidentState) -> dict:
 
 
 
+
+
 def synthesize_findings(state: IncidentState) -> dict:
-
-    # llm = ChatOllama(
-    #     model=OLLAMA_MODEL,
-    #     base_url=OLLAMA_BASE_URL,
-    #     temperature=0
-    # )
-
-    llm = get_llm()
-    # Read the historical evidence retrieved by the RAG node.
-    retrieved_context = state.get("retrieved_context", [])
-
-    # Serialize the retrieved chunks, including their source paths.
-    # This makes the evidence readable to the language model.
-    retrieved_context_text = json.dumps(
-        retrieved_context,
-        indent=2,
-        default=str,
+    llm = ChatOllama(
+        base_url=OLLAMA_BASE_URL,
+        model=OLLAMA_MODEL,
+        temperature=0,
+        format=IncidentAnalysis.model_json_schema(),
     )
 
     prompt = f"""
-    You are investigating a production software incident.
+You are investigating a production software incident.
 
+Use only the evidence and intermediate findings supplied below.
+Do not invent logs, metric values, deployments, or observations.
+A correlation does not prove causation.
+If evidence is insufficient, say so and explain the uncertainty.
+Confidence must reflect the strength of the evidence, not guesswork.
+Recommendations must be actionable and safe. Do not claim actions
+have already been performed.
 
-    Use only the evidence and intermediate findings supplied below.
-    Do not invent logs,metric values,deployments or observations.
-    A correlation does not prove causation.
-    If evidence is insufficient, say so and explain the uncertainty.
-    Confidence must reflect strength of evidence,not  guesswork.
-    Recommendations must be actionable and safe.Do not claim actions have already been performed.
+INCIDENT EVIDENCE:
+{state["investigation_data"]}
 
-    INCIDENT EVIDENCE:
-    {state["investigation_data"]}
+LOG ANALYSIS:
+{state["log_analysis"]}
 
-    LOG ANALYSIS:
-    {state["log_analysis"]}
+METRICS ANALYSIS:
+{state["metrics_analysis"]}
 
-    METRICS ANALYSIS:
-    {state["metrics_analysis"]}
+DEPLOYMENT ANALYSIS:
+{state["deployment_analysis"]}
 
-    DEPLOYMENT ANALYSIS:
-    {state["deployment_analysis"]}
+Return an object matching the requested IncidentAnalysis schema.
+"""
 
-    RETRIEVED HISTORICAL INCIDENTS AND RUNBOOKS:
-    {retrieved_context_text}
+    response = llm.invoke(prompt)
 
-    Instructions:
-    1. Use live incident data and the three analyses as the primary evidence
-    about the current incident.
-    2. Use retrieved documents as historical context and troubleshooting
-    guidance, not as proof of the current root cause.
-    3. Do not claim a historical incident's root cause is the current
-    incident's root cause unless current evidence supports that conclusion.
-    4. Distinguish confirmed observations from suspected explanations.
-    5. If the evidence is insufficient, explain the uncertainty.
-    6. Recommend practical diagnostic or remediation steps supported by
-    the available evidence.
-    7. Return output that conforms exactly to the existing IncidentAnalysis
-    JSON schema.
+    raw = response.content.strip()
 
-    Return exactly one JSON object with these five top-level keys and no others:
-    "suspected_root_cause" (string), "confidence" (number from 0 to 1),
-    "supporting_evidence" (array of strings), "recommended_actions"
-    (array of strings), and "uncertainties" (array of strings).
-    Do not return the incident record itself or wrap the object in another
-    object. Include every key even when a list is empty. Return JSON only.
+    # Remove Markdown code fences if present.
+    if raw.startswith("```"):
+        lines = raw.splitlines()
+        lines = lines[1:]
 
-    Required schema:
-    {json.dumps(IncidentAnalysis.model_json_schema(), indent=2)}
-    """
-    
-response = llm.invoke(prompt)
+        if lines and lines[-1].strip() == "```":
+            lines = lines[:-1]
 
-# Remove Markdown code fences if the model adds them.
-raw = response.content.strip()
+        raw = "\n".join(lines).strip()
 
-if raw.startswith("```"):
-    lines = raw.splitlines()
-
-    # Remove the opening ``` or ```json line.
-    lines = lines[1:]
-
-    # Remove the closing ``` line.
-    if lines and lines[-1].strip() == "```":
-        lines = lines[:-1]
-
-    raw = "\n".join(lines).strip()
-
-# Parse and validate the JSON against our schema.
-analysis = IncidentAnalysis.model_validate_json(raw)
-
-return {
-    "analysis": analysis.model_dump_json(indent=2)
-}
-
+    # Validate the structured response.
+    analysis = IncidentAnalysis.model_validate_json(raw)
 
     return {
         "analysis": analysis.model_dump_json(indent=2)
     }
+
+
 
 def validate_findings(state: IncidentState) -> dict:
     analysis = json.loads(state["analysis"])
